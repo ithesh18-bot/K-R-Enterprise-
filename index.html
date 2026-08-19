@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K.R. Enterprises — Billing</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f1ef;color:#202124}
+header{background:#651b14;color:white;padding:18px 16px;position:sticky;top:0;z-index:5;box-shadow:0 3px 12px #0002}
+header h1{margin:0;font-size:24px;letter-spacing:.5px}header p{margin:4px 0 0;font-size:12px;opacity:.9}
+main{max-width:1100px;margin:auto;padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:white;border-radius:14px;padding:16px;box-shadow:0 3px 16px #00000012;margin-bottom:16px}
+h2{font-size:18px;margin:0 0 14px;color:#651b14}label{display:block;font-size:12px;font-weight:700;margin:10px 0 5px}
+input,select,button{font:inherit}input,select{width:100%;padding:11px;border:1px solid #d8d2cf;border-radius:9px;background:#fff}
+.row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+button{border:0;border-radius:9px;padding:11px 14px;font-weight:700;cursor:pointer}
+.primary{background:#651b14;color:white}.secondary{background:#eee7e3;color:#45140f}.danger{background:#fbe8e6;color:#a51f17}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{flex:1;min-width:130px}
+table{width:100%;border-collapse:collapse;font-size:12px}th{background:#651b14;color:white;padding:9px;text-align:left}td{border:1px solid #ddd;padding:6px}td input{padding:7px;border:0;background:transparent}
+.total{font-size:20px;font-weight:800;text-align:right;color:#651b14}.muted{color:#777;font-size:12px}
+.bill-preview{background:white;padding:28px;border:1px solid #ddd;min-height:800px}.bill-head{text-align:center;border-bottom:2px solid #651b14;padding-bottom:10px}.bill-head h1{margin:0;color:#651b14;font-size:31px}.bill-head p{margin:5px 0;font-size:13px}
+.bill-meta{display:flex;justify-content:space-between;margin:18px 0;font-weight:700}.bill-meta span{font-weight:400}
+.preview-table th,.preview-table td{font-size:11px}.signature{text-align:right;margin-top:40px}.signature strong{color:#651b14}
+#historyList{max-height:300px;overflow:auto}.history-item{padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:8px}
+.small{font-size:11px}.hidden{display:none}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.row3{grid-template-columns:1fr 1fr}.card{padding:12px}table{min-width:700px}.table-wrap{overflow-x:auto}.bill-preview{padding:16px}.bill-head h1{font-size:25px}}
+@media print{
+body{background:white}.no-print,header,main>.grid>.card:not(#previewCard){display:none!important}
+main{padding:0;max-width:none}.grid{display:block}.card{box-shadow:none;padding:0}.bill-preview{border:0;padding:10mm;min-height:auto}
+#previewCard{display:block!important}.bill-head h1{font-size:28px}
+}
+</style>
+</head>
+<body>
+<header class="no-print">
+  <h1>🚛 K.R. Enterprises</h1>
+  <p>Billing System • Mobile Friendly</p>
+</header>
+
+<main>
+<div class="grid">
+<section class="card no-print">
+<h2>New Bill</h2>
+<div class="row">
+<div><label>Bill No.</label><input id="billNo" type="number"></div>
+<div><label>Bill Date</label><input id="billDate" type="date"></div>
+</div>
+<label>M/s. Customer / Party</label><input id="customer" placeholder="e.g. Tirupati Builder">
+<label>Customer Address (optional)</label><input id="customerAddress" placeholder="Address">
+<label>Business Address / Header</label><input id="businessAddress" value="Regd. No. 402, Shalatevi Co. - Opp. Housing Society, D-Wing, Opp. Indian Oil Nagar, D.N. Nagar, Andheri (W), Mumbai - 58">
+<label>Mobile Numbers</label><input id="mobileNumbers" value="+91 98200 82070  |  +91 83560 54150">
+</section>
+
+<section class="card no-print">
+<h2>Billing Controls</h2>
+<p class="muted">Amount is calculated automatically as <b>Trips × Rate</b>.</p>
+<div class="actions">
+<button class="primary" onclick="addRow()">＋ Add Trip</button>
+<button class="secondary" onclick="saveBill()">💾 Save Bill</button>
+<button class="secondary" onclick="clearBill()">↻ New / Clear</button>
+</div>
+<hr style="border:0;border-top:1px solid #eee;margin:16px 0">
+<h2>Saved Bills</h2>
+<div id="historyList" class="muted">No saved bills yet.</div>
+</section>
+</div>
+
+<section class="card no-print">
+<h2>Trip Entries</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Date</th><th>Truck No.</th><th>Trips</th><th>Qty.</th><th>Challan No.</th><th>Rate (₹)</th><th>Amount (₹)</th><th></th></tr></thead>
+<tbody id="entryBody"></tbody>
+</table>
+</div>
+<div class="total">Total: ₹ <span id="grandTotal">0.00</span></div>
+</section>
+
+<section class="card" id="previewCard">
+<div class="no-print actions" style="margin-bottom:12px">
+<button class="primary" onclick="window.print()">🖨️ Print / Save PDF</button>
+<button class="secondary" onclick="shareBill()">📤 Share Bill</button>
+</div>
+<div class="bill-preview" id="billPreview"></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+let rows=[];
+let nextBill=Number(localStorage.getItem('krNextBill')||'690');
+
+function today(){return new Date().toISOString().slice(0,10)}
+function fmtDate(v){if(!v)return'';let d=new Date(v+'T00:00:00');return d.toLocaleDateString('en-GB')}
+function money(n){return Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function words(n){
+ n=Math.round(Number(n||0)); if(n===0)return'Zero Only';
+ const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+ const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+ function under(x){if(x<20)return a[x];if(x<100)return b[Math.floor(x/10)]+(x%10?' '+a[x%10]:'');return a[Math.floor(x/100)]+' Hundred'+(x%100?' '+under(x%100):'')}
+ let s=''; if(n>=10000000){s+=under(Math.floor(n/10000000))+' Crore ';n%=10000000}
+ if(n>=100000){s+=under(Math.floor(n/100000))+' Lakh ';n%=100000}
+ if(n>=1000){s+=under(Math.floor(n/1000))+' Thousand ';n%=1000}
+ if(n>0)s+=under(n); return s.trim()+' Only';
+}
+function addRow(data={}){
+ rows.push({date:data.date||today(),truck:data.truck||'',trips:data.trips||1,qty:data.qty||'',challan:data.challan||'',rate:data.rate||1300});
+ renderRows();
+}
+function renderRows(){
+ $('entryBody').innerHTML=rows.map((r,i)=>{
+ let amount=(Number(r.trips)||0)*(Number(r.rate)||0);
+ return `<tr>
+ <td><input type="date" value="${r.date}" onchange="upd(${i},'date',this.value)"></td>
+ <td><input value="${r.truck}" placeholder="MH.. " onchange="upd(${i},'truck',this.value)"></td>
+ <td><input type="number" min="0" value="${r.trips}" onchange="upd(${i},'trips',this.value)"></td>
+ <td><input value="${r.qty}" placeholder="-" onchange="upd(${i},'qty',this.value)"></td>
+ <td><input value="${r.challan}" placeholder="Challan" onchange="upd(${i},'challan',this.value)"></td>
+ <td><input type="number" min="0" value="${r.rate}" onchange="upd(${i},'rate',this.value)"></td>
+ <td><b>${money(amount)}</b></td>
+ <td><button class="danger" onclick="removeRow(${i})">×</button></td></tr>`}).join('');
+ let total=rows.reduce((s,r)=>s+(Number(r.trips)||0)*(Number(r.rate)||0),0);
+ $('grandTotal').textContent=money(total); renderPreview();
+}
+function upd(i,k,v){rows[i][k]=v;renderRows()}
+function removeRow(i){rows.splice(i,1);renderRows()}
+function renderPreview(){
+ let total=rows.reduce((s,r)=>s+(Number(r.trips)||0)*(Number(r.rate)||0),0);
+ let body=rows.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.truck||'-'}</td><td>${r.trips||0}</td><td>${r.qty||'-'}</td><td>${r.challan||'-'}</td><td style="text-align:right">${money(r.rate)}</td><td style="text-align:right">${money((Number(r.trips)||0)*(Number(r.rate)||0))}</td></tr>`).join('');
+ $('billPreview').innerHTML=`
+ <div class="bill-head">
+   <h1>K.R. ENTERPRISES</h1>
+   <p><b>EARTH FILLING, RABIT, STONE, BRICKS, SUPPLIER, POCLAIN, J.C.B., DUMPER OR HIRES</b></p>
+   <p>${$('businessAddress').value}</p>
+   <p><b>Mob:</b> ${$('mobileNumbers')?.value || '+91 98200 82070  |  +91 83560 54150'}</p>
+ </div>
+ <div class="bill-meta"><div>Bill No.: <span>${$('billNo').value}</span></div><div>Date: <span>${fmtDate($('billDate').value)}</span></div></div>
+ <div style="margin-bottom:16px"><b>M/s.:</b> ${$('customer').value||'________________________'}<br><span class="small">${$('customerAddress').value||''}</span></div>
+ <table class="preview-table"><thead><tr><th>Date</th><th>Truck No.</th><th>Trips</th><th>Qty.</th><th>Challan No.</th><th>Rate (Rs.)</th><th>Amount (Rs.)</th></tr></thead>
+ <tbody>${body||'<tr><td colspan="7" style="text-align:center">No entries</td></tr>'}</tbody>
+ <tfoot><tr><td colspan="6"><b>TOTAL</b></td><td style="text-align:right"><b>${money(total)}</b></td></tr>
+ <tr><td colspan="6"><b>Rupees (in words):</b> <i>${words(total)}</i></td><td style="text-align:right"><b>₹ ${money(total)}</b></td></tr></tfoot></table>
+ <div class="signature"><strong>For K.R. ENTERPRISES</strong><br><br><br>________________________<br><b>Proprietor</b></div>
+ <div style="margin-top:30px;font-size:11px">E. & O.E.</div>`;
+}
+function saveBill(){
+ const bill={billNo:$('billNo').value,date:$('billDate').value,customer:$('customer').value,address:$('customerAddress').value,businessAddress:$('businessAddress').value,rows};
+ let hist=JSON.parse(localStorage.getItem('krBills')||'[]'); hist.unshift(bill);localStorage.setItem('krBills',JSON.stringify(hist.slice(0,50)));
+ localStorage.setItem('krNextBill',String(Number($('billNo').value)+1)); loadHistory(); alert('Bill saved on this device.');
+}
+function loadHistory(){
+ let hist=JSON.parse(localStorage.getItem('krBills')||'[]');
+ $('historyList').innerHTML=hist.length?hist.map((b,i)=>`<div class="history-item"><div><b>#${b.billNo}</b> — ${b.customer||'No customer'}<br><span class="small">${fmtDate(b.date)}</span></div><button class="secondary" onclick="openSaved(${i})">Open</button></div>`).join(''):'No saved bills yet.';
+}
+function openSaved(i){
+ let b=JSON.parse(localStorage.getItem('krBills')||'[]')[i];
+ $('billNo').value=b.billNo;$('billDate').value=b.date;$('customer').value=b.customer;$('customerAddress').value=b.address||'';$('businessAddress').value=b.businessAddress||$('businessAddress').value;rows=b.rows||[];renderRows();window.scrollTo({top:0,behavior:'smooth'});
+}
+function clearBill(){
+ $('billNo').value=nextBill;$('billDate').value=today();$('customer').value='';$('customerAddress').value='';rows=[];addRow();
+}
+async function shareBill(){
+ const text=`K.R. Enterprises\\nBill No: ${$('billNo').value}\\nCustomer: ${$('customer').value}\\nTotal: ₹${$('grandTotal').textContent}`;
+ if(navigator.share){try{await navigator.share({title:'K.R. Enterprises Bill',text})}catch(e){}}
+ else navigator.clipboard?.writeText(text).then(()=>alert('Bill summary copied.'))
+}
+['billNo','billDate','customer','customerAddress','businessAddress','mobileNumbers'].forEach(id=>$(id).addEventListener('input',renderPreview));
+$('billNo').value=nextBill;$('billDate').value=today();loadHistory();addRow();
+</script>
+</body>
+</html>
